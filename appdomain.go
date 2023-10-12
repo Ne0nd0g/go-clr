@@ -1,9 +1,11 @@
 //go:build windows
+// +build windows
 
 package clr
 
 import (
 	"fmt"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -155,6 +157,26 @@ func (obj *AppDomain) GetHashCode() (int32, error) {
 	return int32(ret), nil
 }
 
+// GetFriendlyName returns the friendlyname of the appdomain
+func (obj *AppDomain) GetFriendlyName() (name string, err error) {
+	debugPrint("Entering into appdomain.GetFriendlyName()...")
+	var bstrFriendlyname unsafe.Pointer
+	hr, _, err := syscall.Syscall(
+		obj.vtbl.get_FriendlyName,
+		3,
+		uintptr(unsafe.Pointer(obj)),
+		uintptr(unsafe.Pointer(&bstrFriendlyname)),
+		0)
+	if err != syscall.Errno(0) {
+		return "", fmt.Errorf("the appdomain.GetFriendlyName function returned an error:\r\n%s", err)
+	}
+	if hr != S_OK {
+		err = fmt.Errorf("the appdomain.GetFriendlyName function returned a non-zero HRESULT: 0x%x", hr)
+		return
+	}
+	return ReadUnicodeStr(unsafe.Pointer(bstrFriendlyname)), nil
+}
+
 // Load_3 Loads an Assembly into this application domain.
 // virtual HRESULT __stdcall Load_3 (
 // /*[in]*/ SAFEARRAY * rawAssembly,
@@ -208,5 +230,95 @@ func (obj *AppDomain) ToString() (domain string, err error) {
 	}
 	err = nil
 	domain = ReadUnicodeStr(unsafe.Pointer(pDomain))
+	return
+}
+
+// Load_2 takes an assemblystring (name) and checks each Assembly in the appdomain for a prefix match (case insensitive). If a match is found, it is returned.
+func (obj *AppDomain) Load_2(assemblyString string) (*Assembly, error) {
+	// var err error
+	// var pAssembly *Assembly
+	// str, _ := SysAllocString(assemblyString)
+	// ret, _, _ := syscall.SyscallN(
+	// 	obj.vtbl.Load_2,
+	// 	uintptr(unsafe.Pointer(obj)),
+	// 	uintptr(unsafe.Pointer(str)),
+	// 	uintptr(unsafe.Pointer(&pAssembly)))
+	// if ret != 0 {
+	// 	err = fmt.Errorf("bad load 2: %x", ret)
+	// }
+	// return pAssembly, err
+	//load_2 isn't working nicely, and appears to want a fully qualified assembly name - so let's do the (dumb?) thing and use ListAssemblies to return one that has the right prefix
+	debugPrint("Entering into appdomain.Load_2()...")
+	asmb, err := obj.ListAssemblies()
+	if err != nil {
+		return nil, err
+	}
+	for i := range asmb {
+		if name, err := asmb[i].GetFullName(); err == nil {
+			if strings.HasPrefix(strings.ToLower(name), strings.ToLower(assemblyString)) {
+				return asmb[i], nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("could not find assembly with name %s", assemblyString)
+}
+
+func (obj *AppDomain) GetAssemblies() (safeArray *SafeArray, err error) {
+	debugPrint("Entering into appdomain.GetAssemblies()...")
+	hr, _, err := syscall.SyscallN(
+		obj.vtbl.GetAssemblies,
+		uintptr(unsafe.Pointer(obj)),
+		uintptr(unsafe.Pointer(&safeArray)))
+	if err != syscall.Errno(0) {
+		err = fmt.Errorf("the AppDomain.GetAssemblies method retured an error:\r\n%s", err)
+		return
+	}
+	if hr != S_OK {
+		err = fmt.Errorf("the AppDomain.GetAssemblies method returned a non-zero HRESULT: 0x%x", hr)
+		return
+	}
+	return safeArray, nil
+}
+
+func (obj *AppDomain) ListAssemblies() (assemblies []*Assembly, err error) {
+	debugPrint("Entering into appdomain.ListAssemblies()...")
+
+	safeArray, err := obj.GetAssemblies()
+	if err != nil {
+		return
+	}
+	//get dimensions of array (should be 1 for this context always)
+	d, err := SafeArrayGetDim(safeArray)
+	if err != nil {
+		return
+	}
+	if d != 1 {
+		return nil, fmt.Errorf("expected dimension of 1, got %d", d)
+	}
+
+	lbound, err := SafeArrayGetLBound(safeArray, d)
+	if err != nil {
+		return
+	}
+
+	ubound, err := SafeArrayGetUBound(safeArray, d)
+	if err != nil {
+		return
+	}
+	arrlen := ubound - lbound
+	//avoids allocs (lol, overkill)
+	assemblies = make([]*Assembly, 0, arrlen)
+	for i := lbound; i <= ubound; i++ {
+		pApp, err := SafeArrayGetElement(safeArray, i)
+		if err != nil {
+			return nil, err
+		}
+		app := (*Assembly)(pApp)
+
+		if err != nil {
+			return nil, err
+		}
+		assemblies = append(assemblies, app)
+	}
 	return
 }

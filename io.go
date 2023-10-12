@@ -43,8 +43,8 @@ var Stdout bytes.Buffer
 // Stderr is a buffer to collect anything written to STDERR
 var Stderr bytes.Buffer
 
-// errors is used to capture an errors from a goroutine
-var errors = make(chan error)
+// errorschan is used to capture an errors from a goroutine
+var errorschan = make(chan error)
 
 // mutex ensures exclusive access to read/write on STDOUT/STDERR by one routine at a time
 var mutex = &sync.Mutex{}
@@ -139,9 +139,9 @@ func ReadStdoutStderr() (stdout string, stderr string, err error) {
 	time.Sleep(1 * time.Microsecond)
 
 	// Check the error channel to see if any of the goroutines generated an error
-	if len(errors) > 0 {
+	if len(errorschan) > 0 {
 		var totalErrors string
-		for e := range errors {
+		for e := range errorschan {
 			totalErrors += e.Error()
 		}
 		err = fmt.Errorf(totalErrors)
@@ -201,7 +201,7 @@ func BufferStdout() {
 		buf := make([]byte, 4096)
 		line, err := stdoutReader.Read(buf)
 		if err != nil {
-			errors <- fmt.Errorf("there was an error reading from STDOUT in io.BufferStdout:\n%s", err)
+			errorschan <- fmt.Errorf("there was an error reading from STDOUT in io.BufferStdout:\n%s", err)
 		}
 		if line > 0 {
 			// Remove null bytes and add contents to the buffer
@@ -220,7 +220,7 @@ func BufferStderr() {
 		buf := make([]byte, 4096)
 		line, err := stderrReader.Read(buf)
 		if err != nil {
-			errors <- fmt.Errorf("there was an error reading from STDOUT in io.BufferStdout:\n%s", err)
+			errorschan <- fmt.Errorf("there was an error reading from STDOUT in io.BufferStdout:\n%s", err)
 		}
 		if line > 0 {
 			// Remove null bytes and add contents to the buffer
