@@ -1,0 +1,61 @@
+name: Build, Test & Lint
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+  schedule:
+    - cron: '20 17 * * 6'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows ${{ matrix.arch }} build & test
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, '386']
+    env:
+      GOARCH: ${{ matrix.arch }}
+      CGO_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - name: Build library and examples
+        run: go build ./...
+      - name: Vet
+        # Existing COM return-value conversions fail unsafeptr. New occurrences
+        # are still checked by golangci-lint's govet against the fixed baseline.
+        run: go vet -unsafeptr=false ./...
+      - name: Test
+        # Vet runs separately above. There are currently no test files.
+        run: go test -vet=off ./...
+      - name: Vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+  lint:
+    name: Windows lint & gosec
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The fixed pre-CI baseline must be available on pushes and PRs.
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          args: --new-from-rev=02d72d3519181e1dc71b409bf8eced508cc44537 --max-same-issues=0 --max-issues-per-linter=0 ./...

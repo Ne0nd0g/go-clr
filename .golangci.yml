@@ -1,0 +1,17 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # Keep the standard linters and run gosec with the same Windows target.
+  enable:
+    - gosec
+  settings:
+    gosec:
+      excludes:
+        # Unsafe operations are intrinsic to these COM bindings. This exclusion
+        # does not establish that the pointer operations are correct or safe.
+        - G103
+        # Match the Merlin workspace's existing integer-conversion policy.
+        - G115
