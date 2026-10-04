@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.html).
 
+## 1.0.4 2026-10-04
+
+### Changed
+
+- Bumped the Go directive to 1.27.0
+- Upgraded `golang.org/x/sys` to v0.48.0 and `golang.org/x/text` to v0.42.0
+- Replaced a non-constant format string in `fmt.Errorf` (Go 1.27 `go vet`) in `io.go`
+
 ## 1.0.3 2022-11-10
 
 ## Changed

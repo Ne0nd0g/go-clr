@@ -144,7 +144,7 @@ func ReadStdoutStderr() (stdout string, stderr string, err error) {
 		for e := range errors {
 			totalErrors += e.Error()
 		}
-		err = fmt.Errorf(totalErrors)
+		err = fmt.Errorf("%s", totalErrors)
 		return
 	}
 
