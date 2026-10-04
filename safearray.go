@@ -62,27 +62,24 @@ func CreateSafeArray(rawBytes []byte) (*SafeArray, error) {
 	if err != nil {
 		return nil, err
 	}
-	// now we need to use RtlCopyMemory to copy our bytes to the SafeArray
+	// now we need to use RtlMoveMemory to copy our bytes to the SafeArray
 	modNtDll := syscall.MustLoadDLL("ntdll.dll")
-	procRtlCopyMemory := modNtDll.MustFindProc("RtlCopyMemory")
+	procRtlMoveMemory := modNtDll.MustFindProc("RtlMoveMemory")
 
-	// TODO Replace RtlCopyMemory with SafeArrayPutElement or SafeArrayAccessData
+	// TODO Replace RtlMoveMemory with SafeArrayPutElement or SafeArrayAccessData
 
-	// void RtlCopyMemory(
+	// void RtlMoveMemory(
 	//   void*       Destination,
 	//   const void* Source,
 	//   size_t      Length
 	// );
-	// https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/nf-wdm-rtlcopymemory
-	_, _, err = procRtlCopyMemory.Call(
+	// https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlmovememory
+	// RtlMoveMemory returns void; GetLastError is not a copy-failure indicator.
+	_, _, _ = procRtlMoveMemory.Call(
 		safeArray.pvData,
 		uintptr(unsafe.Pointer(&rawBytes[0])),
 		uintptr(len(rawBytes)),
 	)
-
-	if err != syscall.Errno(0) {
-		return nil, err
-	}
 
 	return safeArray, nil
 }

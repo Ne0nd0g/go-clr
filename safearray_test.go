@@ -44,6 +44,7 @@ func readTestSafeArray(t *testing.T, array *SafeArray, size int) []byte {
 func TestCreateSafeArray(t *testing.T) {
 	for _, raw := range [][]byte{{0x00}, {0x00, 0x01, 0x7f, 0x80, 0xff}, []byte("CLR byte array")} {
 		t.Run(fmt.Sprintf("%x", raw), func(t *testing.T) {
+			original := bytes.Clone(raw)
 			array, err := CreateSafeArray(raw)
 			if err != nil {
 				t.Fatalf("CreateSafeArray: %v", err)
@@ -69,6 +70,10 @@ func TestCreateSafeArray(t *testing.T) {
 			}
 			if got := readTestSafeArray(t, array, len(raw)); !bytes.Equal(got, raw) {
 				t.Errorf("array data = %x; want %x", got, raw)
+			}
+			raw[0] ^= 0xff
+			if got := readTestSafeArray(t, array, len(raw)); !bytes.Equal(got, original) {
+				t.Errorf("array data after source mutation = %x; want %x", got, original)
 			}
 			if array.cLocks != 0 {
 				t.Errorf("lock count after read = %d; want 0", array.cLocks)

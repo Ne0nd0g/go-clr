@@ -12,8 +12,7 @@ v2.14.0 so baseline results remain reproducible.
 
 ## Existing findings
 
-This CI introduction preserves the current production Go sources. Lint (including gosec)
-checks findings on added or changed lines since the fixed pre-CI commit
+Lint (including gosec) checks findings on added or changed lines since the fixed pre-CI commit
 `02d72d3519181e1dc71b409bf8eced508cc44537`. The baseline does not advance with
 each PR, so new findings remain gated after merge. Full checkout history is
 required. Existing findings are deferred, not resolved: these include unchecked
@@ -45,8 +44,15 @@ out-of-bounds errors, and access/unaccess cleanup. CI runs the tests uncached wi
 coverage reporting on both architectures. The SAFEARRAY tests call Windows APIs
 using inert byte buffers and require no external assemblies or .NET runtime.
 
+The first test run at `25fdcf5` passed on amd64 with 19.8% package coverage but
+found a missing `ntdll.dll!RtlCopyMemory` export on 386. `CreateSafeArray` now uses
+[RtlMoveMemory](https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlmovememory)
+with the same source, destination, and byte count. It returns no error status,
+so the copy does not interpret GetLastError as a failure. The tests also check
+that later changes to the source bytes do not alter the SAFEARRAY contents.
+
 These tests do not demonstrate managed assembly execution or correctness of every
-COM interface. CodeQL extraction and native Windows
-execution need verification on GitHub Actions after the maintainer commits and
-pushes these files. This library has no release workflow or binary distribution
-step; tagging and publishing remain manual.
+COM interface. CodeQL extraction has passed on GitHub Actions; native execution
+of the memory-copy fix needs verification after the maintainer commits and pushes
+it. This library has no release workflow or binary distribution step; tagging and
+publishing remain manual.
